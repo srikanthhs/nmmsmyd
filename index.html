@@ -362,13 +362,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--on);
       </div>
       <div class="field"><label>Username</label><input type="text" id="inp-username" placeholder="e.g. priya_kumbakonam" autocomplete="username" autocapitalize="none"></div>
       <div class="field"><label>Password</label><input type="password" id="inp-pass" placeholder="Password"></div>
-      <div id="login-helper" style="font-size:11px;color:var(--muted);background:var(--surface2);border-radius:var(--r8);padding:8px 12px;margin-bottom:10px;line-height:1.6"><strong>Admin:</strong> Enter any username &amp; password → full admin access<br><strong>Student:</strong> Register a username to save progress, or use Demo Mode</div>
+      <div id="login-helper" style="font-size:11px;color:var(--muted);background:var(--surface2);border-radius:var(--r8);padding:8px 12px;margin-bottom:10px;line-height:1.6"><strong>Admin:</strong> Enter any username &amp; password → full admin access<br><strong>Student:</strong> Register a username to save your progress to Firebase</div>
       <button class="btn btn-primary w-full" style="justify-content:center;width:100%;margin-bottom:10px" onclick="doAuth()">
         <span class="mi">login</span> <span id="auth-btn-text">Sign In</span>
       </button>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-tonal btn-sm" style="flex:1;justify-content:center" onclick="demoLogin()"><span class="mi">play_circle</span> <span data-key="btn_demo">Demo Mode</span></button>
-      </div>
+
     </div>
 
     <!-- FIREBASE SYNC PANEL (admin only) -->
@@ -429,11 +427,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--on);
           <span class="mi">delete</span> Clear
         </button>
       </div>
-      <div style="margin-top:10px;text-align:center">
-        <button class="btn btn-tonal btn-sm" style="width:100%;justify-content:center" onclick="switchLoginTab('login');demoLogin()">
-          <span class="mi">play_circle</span> Skip — Demo Mode
-        </button>
-      </div>
+
     </div>
   </div>
 </div>
@@ -1223,7 +1217,6 @@ const LANG={
     nav_history:'Test History', nav_leaderboard:'Leaderboard', nav_profile:'My Profile',
     // Login
     login_title:'NMMS Prep Platform', role_student:'Student Portal', role_admin:'Admin Portal',
-    btn_demo:'Demo Mode',
     // Page titles & subs (NAV_META overrides)
     page_dashboard:'Admin Dashboard', page_dashboard_sub:'Real-time platform overview',
     page_students:'Student Management', page_students_sub:'All registered students',
@@ -1275,7 +1268,6 @@ const LANG={
     nav_history:'தேர்வு வரலாறு', nav_leaderboard:'தரவரிசை', nav_profile:'என் சுயவிவரம்',
     // Login
     login_title:'NMMS தயாரிப்பு தளம்', role_student:'மாணவர் போர்டல்', role_admin:'நிர்வாக போர்டல்',
-    btn_demo:'டெமோ முறை',
     // Page titles & subs
     page_dashboard:'நிர்வாக டாஷ்போர்டு', page_dashboard_sub:'நிகழ்நேர தளம் கண்ணோட்டம்',
     page_students:'மாணவர் மேலாண்மை', page_students_sub:'பதிவுசெய்த அனைத்து மாணவர்களும்',
@@ -1368,8 +1360,8 @@ function switchRole(r){
   document.getElementById('tab-reg').style.display=r==='admin'?'none':'block';
   const helper=document.getElementById('login-helper');
   if(helper){
-    if(r==='admin')helper.innerHTML='<strong>Admin:</strong> Enter any username & password → full admin access with demo data.';
-    else helper.innerHTML='<strong>Student:</strong> Register a username to save your progress, or use Demo Mode.';
+    if(r==='admin')helper.innerHTML='<strong>Admin:</strong> Enter any username & password to access the admin portal.';
+    else helper.innerHTML='<strong>Student:</strong> Register a new username to save your progress to Firebase.';
   }
   if(r==='admin'){switchLoginTab('login');}
 }
@@ -1504,7 +1496,7 @@ async function doAuth(){
 
   if(!fbOK||!db){
     // Offline fallback — memory only, no persistence
-    alertEl.innerHTML=alertHtml('info','Offline mode — progress will not be saved permanently.');
+    alertEl.innerHTML=alertHtml('error','Firestore is not connected. Please check your internet connection.');
     currentUser={uid:'offline-'+username,username,name:v('inp-name')||username,school:v('inp-school')||''};
     if(btn)btn.disabled=false;
     setTimeout(startApp,600);return;
@@ -1541,7 +1533,7 @@ async function doAuth(){
         alertEl.innerHTML=alertHtml('error','Username not found.')
           +'<div style="display:flex;gap:8px;margin-top:8px">'
           +'<button class="btn btn-primary btn-sm" onclick="switchLoginTab(\'register\')">Register</button>'
-          +'<button class="btn btn-tonal btn-sm" onclick="demoLogin()">Demo Mode</button>'
+
           +'</div>';
         if(btn)btn.disabled=false;return;
       }
@@ -1562,11 +1554,7 @@ async function doAuth(){
   }
 }
 
-function demoLogin(){
-  const isAdmin=loginRole==='admin';
-  currentUser={uid:isAdmin?'demo-admin':'demo-student',username:isAdmin?'demo_admin':'demo_student',name:isAdmin?'District Admin':'Demo Student'};
-  startApp();
-}
+
 function doLogout(){if(fbOK&&auth)auth.signOut();location.reload();}
 
 // ============================================================
@@ -1576,7 +1564,7 @@ function startApp(){
   ROLE=loginRole;
   document.getElementById('login-wrap').classList.add('hidden');
   document.getElementById('shell').classList.remove('hidden');
-  buildDemoData();
+  initAppData();
   // Role-based UI
   document.getElementById('admin-nav').classList.toggle('hidden',ROLE!=='admin');
   document.getElementById('student-nav').classList.toggle('hidden',ROLE!=='student');
@@ -1913,27 +1901,16 @@ let pyqSelectedYear=2024, pyqSelectedSection='MAT', pyqSelectedPaper=null;
 // ============================================================
 // DEMO DATA
 // ============================================================
-function buildDemoData(){
-  const schools=['PUPS Mayiladuthurai','GHS Sirkali','PUPS Sirkazhi','GHS Nagapattinam','GHSS Mannargudi','PUPS Papanasam','GHS Kumbakonam','PUPS Tharangambadi','GHS Vedaranyam'];
-  const names=['Priya K.','Rajan M.','Kavitha S.','Arjun V.','Meena T.','Suresh P.','Divya R.','Murugan L.','Anitha N.','Bala K.','Selvam R.','Geetha J.','Karthik S.','Revathi A.','Vijay T.','Lakshmi P.','Senthil K.','Pooja M.','Dinesh R.','Amudha V.'];
-  const weeks=5;
-  STUDENTS=names.map((name,i)=>{
-    const wResults={};
-    for(let w=1;w<=weeks;w++){
-      if(Math.random()>0.15){
-        const mat=28+Math.floor(Math.random()*17);const sat=50+Math.floor(Math.random()*40);
-        wResults['week'+w]={mat,sat,total:mat+sat,matMax:45,satMax:90,pct:Math.round(((mat+sat)/135)*100),time:(55+Math.floor(Math.random()*30))*60,attempted:true,timestamp:new Date(Date.now()-(weeks+1-w)*7*86400000).toISOString()};
-      }
-    }
-    const allPcts=Object.values(wResults).map(r=>r.pct);
-    const avg=allPcts.length?Math.round(allPcts.reduce((a,b)=>a+b,0)/allPcts.length):0;
-    const matAvg=Math.round(Object.values(wResults).reduce((a,r)=>a+Math.round((r.mat/r.matMax)*100),0)/(Object.keys(wResults).length||1));
-    const satAvg=Math.round(Object.values(wResults).reduce((a,r)=>a+Math.round((r.sat/r.satMax)*100),0)/(Object.keys(wResults).length||1));
-    return{id:'s'+i,name,school:schools[i%schools.length],district:'Mayiladuthurai',email:name.toLowerCase().replace(/[ .]/g,'')+'@student.in',totalTests:Object.keys(wResults).length,avg,best:allPcts.length?Math.max(...allPcts):0,weekResults:wResults,mat_avg:matAvg,sat_avg:satAvg};
-  });
-  WEEKLY_TESTS=Array.from({length:weeks},(_,i)=>{
+function initAppData(){
+  // No demo students — all data loaded from Firestore
+  STUDENTS = [];
+  WEEKLY_TESTS = Array.from({length:5},(_,i)=>{
     const w=i+1;
-    return{id:'week'+w,label:'Week '+w,num:w,date:new Date(Date.now()-(weeks+1-w)*7*86400000).toLocaleDateString('en-IN'),matQ:45,satQ:90,totalQ:135,answerKey:'A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D'.split(',').slice(0,135)};
+    return{id:'week'+w,label:'Week '+w,num:w,
+      date:new Date(Date.now()-(6-w)*7*86400000).toLocaleDateString('en-IN'),
+      matQ:45,satQ:90,totalQ:135,
+      answerKey:'A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D,A,B,C,D'.split(',').slice(0,135)
+    };
   });
   QB_DATA={
     Analogy:[
@@ -2102,9 +2079,9 @@ function buildDemoData(){
       {q:"Children's Day in India?",o:['14 Oct','14 Nov','15 Nov','26 Jan'],a:1,diff:'Easy'},
       {q:'Which country has the largest population in 2024?',o:['China','USA','Russia','India'],a:3,diff:'Easy'},
     ]
+}
   };
 
-}
 
 // ============================================================
 // POPULATATE SELECTS
